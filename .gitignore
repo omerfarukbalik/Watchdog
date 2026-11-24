@@ -1,0 +1,7 @@
+# Build artifacts
+*.o
+/watchdog
+/worker
+
+# Runtime log (docs/sample_watchdog.log is committed on purpose)
+/watchdog.log

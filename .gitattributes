@@ -1,0 +1,3 @@
+# Force LF line endings: Makefile recipes and bash scripts break with CRLF.
+* text=auto eol=lf
+*.pdf binary
