@@ -158,6 +158,87 @@ int pm_start_all(void)
     return 0;
 }
 
+/* ------------------------------------------------- reap and restart */
+
+/* Finds the RUNNING child with this pid. Only running children can still
+ * be reaped; dead ones keep their last pid, which the system may have
+ * reused for a new process, so they must not match. */
+static child_t *find_running(pid_t pid)
+{
+    for (int i = 0; i < n_children; i++)
+        if (children[i].state == CS_RUNNING && children[i].pid == pid)
+            return &children[i];
+    return NULL;
+}
+
+/* After a crash: restart the child if it has restarts left, else give up. */
+static void restart_or_give_up(child_t *c)
+{
+    if (c->restarts >= MAX_RESTARTS) {
+        c->state = CS_GAVE_UP;
+        log_event("GIVE UP %s after %d restarts", c->name, c->restarts);
+        return;
+    }
+
+    c->restarts++;
+    log_event("RESTART %s attempt %d/%d", c->name, c->restarts, MAX_RESTARTS);
+    if (start_child(c) == -1) {
+        /* fork() failed (e.g. EAGAIN): the periodic check retries it. */
+        c->state = CS_PENDING;
+        log_event("PENDING %s: will retry at the next check", c->name);
+    }
+}
+
+/* Decides what a finished child's wait status means and acts on it. */
+static void handle_exit(child_t *c, int status)
+{
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+        /* Normal termination: the child finished its job. */
+        c->state = CS_EXITED;
+        log_event("EXIT %s pid=%d normal", c->name, (int)c->pid);
+        return;
+    }
+
+    /* Unexpected termination. */
+    if (WIFEXITED(status))
+        log_event("CRASH %s pid=%d exit code=%d",
+                  c->name, (int)c->pid, WEXITSTATUS(status));
+    else if (WIFSIGNALED(status))
+        log_event("CRASH %s pid=%d signal %d (%s)",
+                  c->name, (int)c->pid, WTERMSIG(status), strsignal(WTERMSIG(status)));
+    else
+        log_event("CRASH %s pid=%d status=0x%x", c->name, (int)c->pid, (unsigned)status);
+
+    restart_or_give_up(c);
+}
+
+void pm_reap(void)
+{
+    /* One SIGCHLD can stand for several children (signals do not queue),
+     * so reap until waitpid() says nothing more has finished. */
+    for (;;) {
+        int status;
+        pid_t pid = waitpid(-1, &status, WNOHANG);
+
+        if (pid == 0)
+            return; /* children exist, none has finished */
+        if (pid == -1) {
+            if (errno == EINTR)
+                continue;
+            if (errno != ECHILD) /* ECHILD: no children at all */
+                log_event("REAP waitpid failed: %s", strerror(errno));
+            return;
+        }
+
+        child_t *c = find_running(pid);
+        if (c == NULL) {
+            log_event("REAP unknown child pid=%d", (int)pid);
+            continue;
+        }
+        handle_exit(c, status);
+    }
+}
+
 /* --------------------------------------------------------- accessors */
 
 int pm_running_count(void)
