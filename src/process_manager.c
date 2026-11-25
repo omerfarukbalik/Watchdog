@@ -28,6 +28,7 @@
 /* Static table: no malloc, so nothing to free and nothing to leak. */
 static child_t children[PM_MAX_CHILDREN];
 static int     n_children = 0;
+static int     shutting_down = 0; /* set by pm_begin_shutdown(): no restarts */
 
 /* ------------------------------------------------- child side of fork() */
 
@@ -192,6 +193,18 @@ static void restart_or_give_up(child_t *c)
 /* Decides what a finished child's wait status means and acts on it. */
 static void handle_exit(child_t *c, int status)
 {
+    if (shutting_down) {
+        /* We asked it to stop (or it ended on its own meanwhile): never
+         * restart during shutdown, just record how it ended. */
+        c->state = CS_STOPPED;
+        if (WIFSIGNALED(status))
+            log_event("STOP %s pid=%d signal %d", c->name, (int)c->pid, WTERMSIG(status));
+        else
+            log_event("STOP %s pid=%d exit code=%d", c->name, (int)c->pid,
+                      WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+        return;
+    }
+
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
         /* Normal termination: the child finished its job. */
         c->state = CS_EXITED;
@@ -237,6 +250,92 @@ void pm_reap(void)
         }
         handle_exit(c, status);
     }
+}
+
+/* ------------------------------------------------------ periodic check */
+
+int pm_start_timer(unsigned seconds)
+{
+    if (seconds == 0) {
+        log_event("TIMER not started: interval must be > 0");
+        return -1;
+    }
+
+    /* it_value = first expiry, it_interval = period after that. */
+    struct itimerval it;
+    memset(&it, 0, sizeof it);
+    it.it_value.tv_sec = (time_t)seconds;
+    it.it_interval.tv_sec = (time_t)seconds;
+
+    if (setitimer(ITIMER_REAL, &it, NULL) == -1) {
+        log_event("TIMER setitimer failed: %s", strerror(errno));
+        return -1;
+    }
+    log_event("TIMER periodic check every %us", seconds);
+    return 0;
+}
+
+void pm_stop_timer(void)
+{
+    struct itimerval it;
+    memset(&it, 0, sizeof it); /* all zero = disarm */
+    if (setitimer(ITIMER_REAL, &it, NULL) == -1)
+        log_event("TIMER disarm failed: %s", strerror(errno));
+}
+
+void pm_check(void)
+{
+    /* Safety net: reap anything whose SIGCHLD was missed. */
+    pm_reap();
+
+    /* Retry children whose (re)start failed because fork() failed. */
+    if (!shutting_down) {
+        for (int i = 0; i < n_children; i++)
+            if (children[i].state == CS_PENDING)
+                (void)start_child(&children[i]); /* logs START or the error */
+    }
+
+    int count[CS_STOPPED + 1] = { 0 };
+    for (int i = 0; i < n_children; i++)
+        count[children[i].state]++;
+
+    log_event("CHECK running=%d pending=%d exited=%d gave_up=%d stopped=%d",
+              count[CS_RUNNING], count[CS_PENDING], count[CS_EXITED],
+              count[CS_GAVE_UP], count[CS_STOPPED]);
+}
+
+/* ------------------------------------------------------------ shutdown */
+
+void pm_begin_shutdown(void)
+{
+    if (shutting_down)
+        return;
+    shutting_down = 1;
+
+    /* A child waiting for a restart retry will not be started any more. */
+    for (int i = 0; i < n_children; i++) {
+        if (children[i].state == CS_PENDING) {
+            children[i].state = CS_STOPPED;
+            log_event("STOP %s: pending start cancelled", children[i].name);
+        }
+    }
+}
+
+int pm_signal_all(int sig)
+{
+    int sent = 0;
+    for (int i = 0; i < n_children; i++) {
+        child_t *c = &children[i];
+        if (c->state != CS_RUNNING)
+            continue;
+        /* A RUNNING child has not been reaped yet, so its pid cannot have
+         * been reused: kill() reaches the right process. */
+        if (kill(c->pid, sig) == -1)
+            log_event("SIGNAL %s pid=%d failed: %s", c->name, (int)c->pid, strerror(errno));
+        else
+            sent++;
+    }
+    return sent;
 }
 
 /* --------------------------------------------------------- accessors */
