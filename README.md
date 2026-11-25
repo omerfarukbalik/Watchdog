@@ -159,7 +159,7 @@ docs/     REPORT.pdf  sample_watchdog.log
 
 | Role | Member | Module | Files |
 |------|--------|--------|-------|
-| A (Student 1) | _TODO_ | Signal management & main program | `signal_manager.h/.c`, `main.c`, `docs/REPORT.pdf` |
+| A (Student 1) | Kürşat Kerem ÇEVLİK (KursatKerem56) | Signal management & main program | `signal_manager.h/.c`, `main.c`, `docs/REPORT.pdf` |
 | B (Student 2) | _TODO_ | Child process management | `process_manager.h/.c` |
 | C (Student 3) | omerfarukbalik | Logging & test infrastructure | `logger.h/.c`, `worker.c`, `Makefile`, `test_scenarios.sh`, `README.md` |
 
