@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Watchdog - Project Report</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 20mm 18mm;
+    @bottom-center { content: counter(page) " / " counter(pages); font: 9pt "Segoe UI", "DejaVu Sans", Arial, sans-serif; color: #666; }
+  }
+  @page :first { @bottom-center { content: none; } }
+
+  :root { --ink: #1d2433; --muted: #5b6475; --line: #d5dae3; --accent: #1f4e8c; --soft: #eef3fa; --todo: #fff1a8; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font: 10.5pt/1.5 "Segoe UI", "DejaVu Sans", Arial, sans-serif; color: var(--ink); margin: 0; background: #fff; }
+  h1, h2, h3 { color: var(--accent); line-height: 1.25; }
+  h2 { font-size: 15pt; margin: 22pt 0 6pt; padding-bottom: 3pt; border-bottom: 1.5pt solid var(--accent); break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 14pt 0 4pt; break-after: avoid; }
+  p { margin: 0 0 7pt; text-align: justify; }
+  ul, ol { margin: 0 0 8pt; padding-left: 18pt; }
+  li { margin-bottom: 2pt; }
+  td ul { margin: 2pt 0 0; padding-left: 13pt; }
+  td li { margin: 0; line-height: 1.35; }
+  code, pre { font-family: Consolas, "DejaVu Sans Mono", monospace; }
+  code { font-size: 9.3pt; background: var(--soft); padding: 0 2pt; border-radius: 2pt; }
+  pre { font-size: 8.3pt; line-height: 1.35; background: #f6f8fb; border: 0.75pt solid var(--line); border-radius: 3pt; padding: 7pt 9pt; white-space: pre-wrap; word-break: break-word; margin: 0 0 8pt; }
+  table { width: 100%; border-collapse: collapse; margin: 4pt 0 10pt; font-size: 9.5pt; break-inside: auto; }
+  th, td { border: 0.75pt solid var(--line); padding: 3.5pt 6pt; text-align: left; vertical-align: top; }
+  th { background: var(--soft); color: var(--accent); font-weight: 600; }
+  tr { break-inside: avoid; }
+  figure { margin: 6pt 0 12pt; break-inside: avoid; }
+  figcaption { font-size: 9pt; color: var(--muted); text-align: center; margin-top: 3pt; }
+  .todo { background: var(--todo); padding: 0 2pt; }
+  .pass { color: #1b7a35; font-weight: 600; }
+  .fail { color: #b3261e; font-weight: 600; }
+  .pending { color: #8a6d00; font-weight: 600; }
+  .note { font-size: 9.5pt; color: var(--muted); }
+  .keep { break-inside: avoid; }
+  .newpage { break-before: page; }
+
+  /* cover */
+  .cover { height: 245mm; display: flex; flex-direction: column; text-align: center; }
+  .cover .uni { font-size: 13pt; font-weight: 600; margin-top: 10mm; }
+  .cover .dept { font-size: 11pt; color: var(--muted); }
+  .cover .course { margin-top: 30mm; font-size: 12pt; }
+  .cover h1 { font-size: 24pt; margin: 6mm 12mm 4mm; }
+  .cover .sub { font-size: 12pt; color: var(--muted); }
+  .cover table { width: 80%; margin: 22mm auto 0; font-size: 10.5pt; }
+  .cover .meta { margin-top: auto; font-size: 10pt; color: var(--muted); }
+
+  .toc ol { padding-left: 16pt; columns: 2; column-gap: 18pt; }
+
+  svg text { font-family: "Segoe UI", "DejaVu Sans", Arial, sans-serif; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================ COVER -->
+<section class="cover">
+  <div class="uni">Sakarya University</div>
+  <div class="dept">Faculty of Computer and Information Sciences &middot; Software Engineering Department</div>
+  <div class="course">{{COURSE}} &middot; Term Project 1</div>
+  <h1>POSIX Signal-Based Process Monitoring and Management System</h1>
+  <div class="sub">Project Report &mdash; <em>watchdog</em></div>
+  {{MEMBERS_COVER}}
+  <div class="meta">
+    Repository: <a href="{{REPO_URL}}">{{REPO_URL}}</a><br>
+    Report generated: {{DATE}}
+  </div>
+</section>
+
+<!-- ============================================================ TOC -->
+<section class="toc newpage">
+  <h2>Contents</h2>
+  <ol>
+    <li>Introduction</li>
+    <li>Architecture</li>
+    <li>Signal Handling</li>
+    <li>Child Process Management</li>
+    <li>Graceful Shutdown</li>
+    <li>Logging and Status Reporting</li>
+    <li>Build and Usage</li>
+    <li>Test Scenarios and Results</li>
+    <li>Sample Log Output</li>
+    <li>Task Allocation</li>
+    <li>Repository and Commit History</li>
+    <li>Conclusion</li>
+  </ol>
+</section>
+
+<!-- ============================================================ 1 -->
+<h2>1. Introduction</h2>
+<p>
+  This project implements <strong>watchdog</strong>, a process supervisor written in C for Linux using only
+  POSIX system calls. The watchdog starts a set of worker processes with <code>fork()</code> and
+  <code>execv()</code>, detects their termination through <code>SIGCHLD</code> and <code>waitpid()</code>,
+  restarts workers that terminate unexpectedly (at most three times), writes a status report when it receives
+  <code>SIGUSR1</code>, and shuts all workers down in a controlled way on <code>SIGINT</code> or
+  <code>SIGTERM</code>. Every significant event is written to a timestamped log file.
+</p>
+<p>
+  The main design goal was <em>correct and safe signal handling</em>: signal handlers never do real work.
+  They only record that a signal arrived, and all processing happens in the main control loop. The project
+  is split into three modules, one per group member, so that each member's work is visible as a separate
+  part of the code base and of the commit history.
+</p>
+
+<!-- ============================================================ 2 -->
+<h2>2. Architecture</h2>
+<p>
+  The program consists of one supervisor process (the watchdog) and three supervised children, all running
+  the test program <code>./worker</code> in different modes. Signals from the user, the kernel and the
+  interval timer are turned into flags by the signal manager; the main loop reads these flags and calls the
+  process manager or the logger.
+</p>
+
+<figure>
+<svg viewBox="0 0 700 448" width="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Watchdog architecture">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f4e8c"/>
+    </marker>
+  </defs>
+  <g font-size="12" fill="#1d2433">
+    <!-- A: signal sources -->
+    <rect x="40" y="10" width="620" height="48" rx="6" fill="#f6f8fb" stroke="#9aa6b8"/>
+    <text x="350" y="30" text-anchor="middle" font-weight="600">Signal sources</text>
+    <text x="350" y="48" text-anchor="middle" font-size="11">user: kill -USR1 / -TERM, Ctrl+C (SIGINT) &#183; kernel: SIGCHLD when a child exits &#183; interval timer: SIGALRM</text>
+
+    <!-- B: signal manager -->
+    <rect x="40" y="85" width="620" height="58" rx="6" fill="#eef3fa" stroke="#1f4e8c"/>
+    <text x="350" y="106" text-anchor="middle" font-weight="600">signal_manager.c  (Student 1)</text>
+    <text x="350" y="125" text-anchor="middle" font-size="11">sigaction() handlers only set volatile sig_atomic_t flags;</text>
+    <text x="350" y="139" text-anchor="middle" font-size="11">handled signals stay blocked except inside sigsuspend() / pselect()</text>
+
+    <!-- C: main loop -->
+    <rect x="40" y="170" width="620" height="58" rx="6" fill="#eef3fa" stroke="#1f4e8c"/>
+    <text x="350" y="191" text-anchor="middle" font-weight="600">main.c &#8212; main control loop  (Student 1)</text>
+    <text x="350" y="210" text-anchor="middle" font-size="11">sm_wait() &#8594; SIGCHLD: pm_reap() &#183; SIGALRM: pm_check() &#183; SIGUSR1: log_status_report()</text>
+    <text x="350" y="224" text-anchor="middle" font-size="11">SIGINT / SIGTERM: leave the loop and run graceful_shutdown()</text>
+
+    <!-- D row -->
+    <rect x="40" y="258" width="200" height="72" rx="6" fill="#fff" stroke="#1f4e8c"/>
+    <text x="140" y="278" text-anchor="middle" font-weight="600">process_manager.c</text>
+    <text x="140" y="292" text-anchor="middle" font-size="10.5" fill="#5b6475">(Student 2)</text>
+    <text x="140" y="308" text-anchor="middle" font-size="10.5">fork/execv &#183; waitpid &#183; restart &#8804; 3</text>
+    <text x="140" y="322" text-anchor="middle" font-size="10.5">setitimer periodic check</text>
+
+    <rect x="250" y="258" width="200" height="72" rx="6" fill="#fff" stroke="#1f4e8c"/>
+    <text x="350" y="278" text-anchor="middle" font-weight="600">logger.c</text>
+    <text x="350" y="292" text-anchor="middle" font-size="10.5" fill="#5b6475">(Student 3)</text>
+    <text x="350" y="308" text-anchor="middle" font-size="10.5">timestamped open()/write() log</text>
+    <text x="350" y="322" text-anchor="middle" font-size="10.5">SIGUSR1 status report</text>
+
+    <rect x="460" y="258" width="200" height="72" rx="6" fill="#fff" stroke="#1f4e8c"/>
+    <text x="560" y="278" text-anchor="middle" font-weight="600">graceful shutdown</text>
+    <text x="560" y="292" text-anchor="middle" font-size="10.5" fill="#5b6475">(main.c, Student 1)</text>
+    <text x="560" y="308" text-anchor="middle" font-size="10.5">SIGTERM &#8594; wait 5 s &#8594; SIGKILL</text>
+    <text x="560" y="322" text-anchor="middle" font-size="10.5">&#8594; reap every child</text>
+
+    <!-- E row -->
+    <rect x="40" y="362" width="200" height="50" rx="6" fill="#f6f8fb" stroke="#9aa6b8"/>
+    <text x="140" y="383" text-anchor="middle" font-weight="600">worker processes</text>
+    <text x="140" y="400" text-anchor="middle" font-size="10.5">alpha &#183; beta &#183; gamma</text>
+
+    <rect x="250" y="362" width="200" height="50" rx="6" fill="#f6f8fb" stroke="#9aa6b8"/>
+    <text x="350" y="383" text-anchor="middle" font-weight="600">watchdog.log</text>
+    <text x="350" y="400" text-anchor="middle" font-size="10.5">(also mirrored to stderr)</text>
+  </g>
+  <g stroke="#1f4e8c" stroke-width="1.5" fill="none">
+    <line x1="350" y1="58" x2="350" y2="83" marker-end="url(#ar)"/>
+    <line x1="350" y1="143" x2="350" y2="168" marker-end="url(#ar)"/>
+    <line x1="140" y1="228" x2="140" y2="256" marker-end="url(#ar)"/>
+    <line x1="350" y1="228" x2="350" y2="256" marker-end="url(#ar)"/>
+    <line x1="560" y1="228" x2="560" y2="256" marker-end="url(#ar)"/>
+    <line x1="140" y1="330" x2="140" y2="360" marker-end="url(#ar)"/>
+    <line x1="350" y1="330" x2="350" y2="360" marker-end="url(#ar)"/>
+    <path d="M560,330 V428 H140 V414" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+    <path d="M40,387 H20 V34 H38" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+  </g>
+  <text x="14" y="215" font-size="10.5" fill="#5b6475" transform="rotate(-90 14 215)" text-anchor="middle">child exits &#8594; SIGCHLD</text>
+  <text x="566" y="380" font-size="10.5" fill="#5b6475">SIGTERM, then SIGKILL</text>
+  <text x="566" y="394" font-size="10.5" fill="#5b6475">via pm_signal_all()</text>
+</svg>
+<figcaption>Figure 1 &mdash; Modules and the flow from a signal to the action that handles it.
+Dashed arrows: a child that exits raises <code>SIGCHLD</code>; during shutdown the children are signalled through <code>pm_signal_all()</code>.</figcaption>
+</figure>
+
+<h3>2.1 File structure</h3>
+<table>
+  <tr><th style="width:32%">File</th><th>Purpose</th><th style="width:14%">Owner</th></tr>
+  <tr><td><code>src/main.c</code></td><td>Entry point, child configuration, main control loop, graceful shutdown</td><td>Student 1</td></tr>
+  <tr><td><code>include/signal_manager.h</code>, <code>src/signal_manager.c</code></td><td>Signal handler installation (<code>sigaction</code>), event flags, race-free waiting</td><td>Student 1</td></tr>
+  <tr><td><code>include/process_manager.h</code>, <code>src/process_manager.c</code></td><td>Child table, <code>fork</code>/<code>execv</code>, reaping, restart policy, periodic timer</td><td>Student 2</td></tr>
+  <tr><td><code>include/logger.h</code>, <code>src/logger.c</code></td><td>Timestamped log file, status report</td><td>Student 3</td></tr>
+  <tr><td><code>workers/worker.c</code></td><td>Test child with <code>forever</code>, <code>exit-ok</code>, <code>crash</code> and <code>abort</code> modes</td><td>Student 3</td></tr>
+  <tr><td><code>Makefile</code>, <code>tests/test_scenarios.sh</code>, <code>README.md</code></td><td>Build, automated test scenarios, user documentation</td><td>Student 3</td></tr>
+  <tr><td><code>docs/REPORT.pdf</code>, <code>docs/report/</code></td><td>This report and its generator</td><td>Student 1</td></tr>
+</table>
+
+<h3>2.2 Module interfaces</h3>
+<p>
+  The modules communicate only through their headers. <code>signal_manager.h</code> exposes
+  <code>sm_install()</code>, <code>sm_wait()</code>, <code>sm_wait_timeout()</code>, read-and-clear accessors
+  for each event (<code>sm_take_child_event()</code>, <code>sm_take_alarm()</code>,
+  <code>sm_take_status_request()</code>), the shutdown accessors and <code>sm_child_reset()</code>.
+  <code>process_manager.h</code> exposes the child table (<code>child_t</code>) and the
+  <code>pm_*</code> functions used by the main loop and by the logger. <code>logger.h</code> exposes
+  <code>log_open()</code>, <code>log_event()</code>, <code>log_status_report()</code> and
+  <code>log_close()</code>.
+</p>
+
+<!-- ============================================================ 3 -->
+<h2>3. Signal Handling</h2>
+<table>
+  <tr><th style="width:14%">Signal</th><th style="width:24%">Sent by</th><th style="width:26%">Handler (signal context)</th><th>Main loop action</th></tr>
+  <tr><td><code>SIGINT</code></td><td>Ctrl+C or <code>kill -INT</code></td><td>stores the signal number in the shutdown flag; a second one sets the force flag</td><td>leaves the loop and runs the graceful shutdown; a second signal sends <code>SIGKILL</code> at once</td></tr>
+  <tr><td><code>SIGTERM</code></td><td><code>kill -TERM</code></td><td>same as <code>SIGINT</code></td><td>same as <code>SIGINT</code></td></tr>
+  <tr><td><code>SIGUSR1</code></td><td><code>kill -USR1</code></td><td>sets the status flag</td><td><code>log_status_report()</code>: PID, state, restarts and uptime of every child</td></tr>
+  <tr><td><code>SIGCHLD</code></td><td>kernel, when a child terminates</td><td>sets the child flag</td><td><code>pm_reap()</code>: <code>waitpid(-1, &amp;st, WNOHANG)</code> in a loop</td></tr>
+  <tr><td><code>SIGALRM</code></td><td>interval timer (<code>setitimer</code>, every 5 s)</td><td>sets the alarm flag</td><td><code>pm_check()</code>: reaps missed children, retries pending starts, logs <code>CHECK running=N &hellip;</code></td></tr>
+</table>
+
+<h3>3.1 Async-signal-safety</h3>
+<ul>
+  <li><strong>Handlers only write flags.</strong> Each handler stores into a <code>volatile sig_atomic_t</code>
+    variable and returns. There is no <code>printf</code>, no file I/O, no <code>malloc</code> and no
+    <code>fork</code> in signal context. Logging, reaping, restarting and killing are done by the main loop.</li>
+  <li><strong>Handlers never interrupt each other.</strong> Every handler is installed with an
+    <code>sa_mask</code> that blocks all five handled signals while it runs. This also makes the
+    &ldquo;second shutdown signal&rdquo; check (read, then write) safe.</li>
+  <li><strong><code>SA_NOCLDSTOP</code></strong> on <code>SIGCHLD</code>: only real terminations are
+    reported, not stops or continues.</li>
+  <li><strong><code>SA_RESTART</code></strong> on every handler, as an extra safeguard so that an interrupted
+    system call is restarted instead of failing with <code>EINTR</code>.</li>
+</ul>
+
+<h3>3.2 No lost signals</h3>
+<p>
+  A classic bug in signal-driven programs is the window between checking a flag and going to sleep: if the
+  signal arrives in between, the program sleeps although there is work to do. <code>sm_install()</code>
+  therefore <em>blocks</em> all handled signals with <code>sigprocmask()</code> before installing the handlers
+  and before the first <code>fork()</code>. Signals that arrive while the main loop is working stay pending.
+  They are delivered only inside <code>sigsuspend()</code> (main loop) or <code>pselect()</code> (shutdown
+  wait with a timeout), which unblock the signals and sleep in one atomic step. Because handlers can only run
+  there, the read-and-clear accessors in the main loop cannot race with a handler.
+</p>
+<p>
+  Several <code>SIGCHLD</code> signals may be merged into one by the kernel. The process manager therefore
+  calls <code>waitpid(-1, &amp;status, WNOHANG)</code> in a loop until no more terminated children are found,
+  so no child is left as a zombie.
+</p>
+
+<h3>3.3 Signals and child processes</h3>
+<p>
+  A child created by <code>fork()</code> inherits the parent's signal mask, and <code>exec()</code> keeps it.
+  Without special care the workers would start with <code>SIGTERM</code> blocked and would never react to
+  the shutdown request. The child therefore calls <code>sm_child_reset()</code> between <code>fork()</code>
+  and <code>execv()</code>; it restores the default dispositions and the original signal mask using only
+  async-signal-safe calls. The child also calls <code>setpgid(0, 0)</code> so that it runs in its own process
+  group: Ctrl+C in the terminal reaches only the watchdog, which then stops the workers itself in a controlled
+  order. The log file is opened with <code>O_CLOEXEC</code>, so workers do not inherit its descriptor.
+</p>
+
+<!-- ============================================================ 4 -->
+<h2>4. Child Process Management</h2>
+<p>
+  The watchdog supervises three children, configured in <code>main.c</code>:
+</p>
+<table>
+  <tr><th style="width:12%">Child</th><th style="width:34%">Command</th><th>Purpose / expected behaviour</th></tr>
+  <tr><td>alpha</td><td><code>./worker alpha forever</code></td><td>runs until stopped; used for the <code>SIGKILL</code> crash test</td></tr>
+  <tr><td>beta</td><td><code>./worker beta exit-ok 8</code></td><td>exits with code 0 after 8 s: normal termination, not restarted</td></tr>
+  <tr><td>gamma</td><td><code>./worker gamma crash 4</code></td><td>exits with code 1 every 4 s: restarted 3 times, then given up</td></tr>
+</table>
+
+<figure>
+<svg viewBox="0 0 700 262" width="100%" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Child state machine">
+  <defs>
+    <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f4e8c"/>
+    </marker>
+  </defs>
+  <g stroke="#1f4e8c" stroke-width="1.5" fill="none">
+    <line x1="72" y1="110" x2="198" y2="110" marker-end="url(#ar2)"/>
+    <path d="M240,85 C240,32 320,32 320,85" marker-end="url(#ar2)"/>
+    <line x1="350" y1="97" x2="478" y2="36" marker-end="url(#ar2)"/>
+    <line x1="350" y1="110" x2="478" y2="110" marker-end="url(#ar2)"/>
+    <line x1="350" y1="125" x2="478" y2="214" marker-end="url(#ar2)"/>
+    <line x1="255" y1="135" x2="255" y2="203" marker-end="url(#ar2)"/>
+    <line x1="295" y1="205" x2="295" y2="137" marker-end="url(#ar2)"/>
+    <line x1="350" y1="227" x2="478" y2="227" marker-end="url(#ar2)"/>
+  </g>
+  <g font-size="12" fill="#1d2433">
+    <circle cx="60" cy="110" r="11" fill="#1f4e8c"/>
+    <text x="135" y="102" text-anchor="middle" font-size="10.5" fill="#5b6475">fork + execv</text>
+
+    <rect x="200" y="85" width="150" height="50" rx="8" fill="#eef3fa" stroke="#1f4e8c"/>
+    <text x="275" y="115" text-anchor="middle" font-weight="700">RUNNING</text>
+    <text x="280" y="22" text-anchor="middle" font-size="10.5" fill="#5b6475">crash and restarts &lt; 3: RESTART (restarts + 1)</text>
+
+    <rect x="200" y="205" width="150" height="44" rx="8" fill="#fff" stroke="#1f4e8c"/>
+    <text x="275" y="232" text-anchor="middle" font-weight="700">PENDING</text>
+    <text x="249" y="166" text-anchor="end" font-size="10.5" fill="#5b6475">restart: fork() fails</text>
+    <text x="301" y="166" font-size="10.5" fill="#5b6475">retried by the</text>
+    <text x="301" y="179" font-size="10.5" fill="#5b6475">next CHECK</text>
+
+    <rect x="480" y="12" width="190" height="44" rx="8" fill="#fff" stroke="#1f4e8c"/>
+    <text x="575" y="39" text-anchor="middle" font-weight="700">EXITED</text>
+    <rect x="480" y="88" width="190" height="44" rx="8" fill="#fff" stroke="#1f4e8c"/>
+    <text x="575" y="115" text-anchor="middle" font-weight="700">GAVE_UP</text>
+    <rect x="480" y="205" width="190" height="44" rx="8" fill="#fff" stroke="#1f4e8c"/>
+    <text x="575" y="232" text-anchor="middle" font-weight="700">STOPPED</text>
+
+    <text x="410" y="58" text-anchor="middle" font-size="10.5" fill="#5b6475" transform="rotate(-25 410 58)">exit code 0</text>
+    <text x="414" y="104" text-anchor="middle" font-size="10.5" fill="#5b6475">crash, restarts = 3</text>
+    <text x="420" y="160" text-anchor="middle" font-size="10.5" fill="#5b6475" transform="rotate(35 420 160)">exit after shutdown</text>
+    <text x="414" y="221" text-anchor="middle" font-size="10.5" fill="#5b6475">shutdown</text>
+  </g>
+</svg>
+<figcaption>Figure 2 &mdash; Life cycle of a supervised child.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>Creation:</strong> <code>fork()</code>, then in the child <code>setpgid(0, 0)</code>,
+    <code>sm_child_reset()</code> and <code>execv()</code>. If <code>execv()</code> fails the child calls
+    <code>_exit(127)</code>, which the parent sees as an unexpected termination. Between <code>fork()</code> and
+    <code>execv()</code> the child uses only async-signal-safe calls (the error message is written with
+    <code>write()</code>). The parent also calls <code>setpgid(pid, pid)</code>, so the process group is set no
+    matter which of the two runs first, then records the PID, the start time and the state <code>RUNNING</code>,
+    and logs <code>START</code>.</li>
+  <li><strong>Normal termination:</strong> <code>WIFEXITED(status)</code> with exit code 0. The child is
+    marked <code>EXITED</code>, logged as <code>EXIT &hellip; normal</code> and is not restarted.</li>
+  <li><strong>Unexpected termination:</strong> a non-zero exit code or <code>WIFSIGNALED(status)</code>
+    (for example <code>SIGKILL</code> or <code>SIGABRT</code>). It is logged as <code>CRASH</code> with the
+    exit code, or the signal number and its description (<code>CRASH alpha pid=N signal 9 (Killed)</code>).</li>
+  <li><strong>Bounded restart:</strong> after a crash the child is started again and <code>restarts</code>
+    is incremented, as long as <code>restarts &lt; MAX_RESTARTS</code> (3). After the third restart a further
+    crash moves the child to <code>GAVE_UP</code> (<code>GIVE UP gamma after 3 restarts</code>), so the program
+    can never enter an infinite restart loop. If <code>fork()</code> itself fails during a restart (for example
+    <code>EAGAIN</code>), the child is put in the <code>PENDING</code> state and the next periodic check tries again.</li>
+  <li><strong>Matching PIDs safely:</strong> a terminated child keeps its last PID for the status report, but only
+    children in state <code>RUNNING</code> are matched against <code>waitpid()</code> results or signalled with
+    <code>kill()</code>. A PID that the system has reused for an unrelated process is therefore never touched.</li>
+  <li><strong>Periodic check:</strong> <code>setitimer(ITIMER_REAL)</code> raises <code>SIGALRM</code> every
+    5 seconds; the main loop then calls <code>pm_check()</code>. It reaps any child whose <code>SIGCHLD</code> was
+    missed, retries <code>PENDING</code> children and logs the number of children in each state.</li>
+  <li><strong>During shutdown</strong> no child is restarted, pending starts are cancelled and every exit is logged
+    as <code>STOP</code>.</li>
+  <li><strong>Resources:</strong> the child table is a static array, so the module allocates no memory and has
+    nothing to leak. Every system call's return value is checked and failures are logged with
+    <code>strerror(errno)</code>.</li>
+</ul>
+
+<!-- ============================================================ 5 -->
+<h2>5. Graceful Shutdown</h2>
+<p>When <code>SIGINT</code> or <code>SIGTERM</code> arrives, the main loop ends and <code>graceful_shutdown()</code> runs:</p>
+<ol>
+  <li>Log <code>SHUTDOWN requested by SIGINT|SIGTERM</code>.</li>
+  <li><strong>Stop launching new processes:</strong> <code>pm_begin_shutdown()</code> disables restarts and cancels
+    pending starts, and <code>pm_stop_timer()</code> disarms the periodic timer.</li>
+  <li>Reap children that terminated just before the request, so that no stale PID is signalled.</li>
+  <li>Send <code>SIGTERM</code> to every running child with <code>pm_signal_all(SIGTERM)</code>.</li>
+  <li>Wait up to <strong>5 seconds</strong> using <code>pselect()</code> with the remaining time as timeout
+    (measured with <code>CLOCK_MONOTONIC</code>). While waiting, terminated children are reaped as
+    <code>SIGCHLD</code> arrives and <code>SIGUSR1</code> is still answered.</li>
+  <li>If children are still running after the timeout, log <code>SHUTDOWN timeout after 5s: sending SIGKILL
+    to N child(ren)</code>, send <code>SIGKILL</code> and reap them. A second <code>SIGINT</code>/<code>SIGTERM</code>
+    during the wait (for example pressing Ctrl+C twice) skips the rest of the timeout and sends <code>SIGKILL</code> at once.</li>
+  <li>Log <code>SHUTDOWN complete</code>, then <code>WATCHDOG EXIT</code>, and close the log file.</li>
+</ol>
+<p>
+  Every child is reaped with <code>waitpid()</code> before the watchdog exits, so no zombie or orphan worker
+  is left behind. This is verified by the automated tests (scenarios 6, 7 and 8).
+</p>
+
+<!-- ============================================================ 6 -->
+<h2>6. Logging and Status Reporting</h2>
+<p>
+  The logger opens <code>watchdog.log</code> with <code>open(O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC)</code>
+  and writes every line with <code>write()</code> in a loop that handles partial writes and <code>EINTR</code>.
+  Each line starts with a timestamp (<code>[YYYY-MM-DD HH:MM:SS]</code>) and is also mirrored to stderr. The
+  logger is never called from a signal handler.
+</p>
+<table>
+  <tr><th style="width:46%">Event</th><th>Meaning</th></tr>
+  <tr><td><code>WATCHDOG START pid=N</code></td><td>watchdog started</td></tr>
+  <tr><td><code>START name pid=N</code></td><td>child started</td></tr>
+  <tr><td><code>TIMER periodic check every 5s</code></td><td>periodic timer armed</td></tr>
+  <tr><td><code>EXIT name pid=N normal</code></td><td>child exited with code 0 (not restarted)</td></tr>
+  <tr><td><code>CRASH name pid=N exit code=C</code><br><code>CRASH name pid=N signal S (description)</code></td><td>unexpected termination</td></tr>
+  <tr><td><code>RESTART name attempt k/3</code></td><td>child restarted after a crash</td></tr>
+  <tr><td><code>GIVE UP name after 3 restarts</code></td><td>restart limit reached</td></tr>
+  <tr><td><code>PENDING name: will retry &hellip;</code></td><td><code>fork()</code> failed on restart; retried by the periodic check</td></tr>
+  <tr><td><code>CHECK running=N pending=N exited=N gave_up=N stopped=N</code></td><td>periodic check (SIGALRM)</td></tr>
+  <tr><td><code>STATUS REPORT: &hellip;</code></td><td>header plus one line per child (SIGUSR1)</td></tr>
+  <tr><td><code>SHUTDOWN requested by SIGINT|SIGTERM</code></td><td>shutdown signal received</td></tr>
+  <tr><td><code>SHUTDOWN sent SIGTERM to N child(ren) &hellip;</code></td><td>children asked to terminate</td></tr>
+  <tr><td><code>STOP name pid=N exit code=C | signal S</code></td><td>child ended during shutdown</td></tr>
+  <tr><td><code>SHUTDOWN timeout after 5s: sending SIGKILL &hellip;</code></td><td>children did not exit within 5 s</td></tr>
+  <tr><td><code>SHUTDOWN complete: &hellip;</code></td><td>every child stopped and reaped</td></tr>
+  <tr><td><code>WATCHDOG EXIT</code></td><td>watchdog finished</td></tr>
+</table>
+
+<!-- ============================================================ 7 -->
+<h2>7. Build and Usage</h2>
+<pre>make                          # builds ./watchdog and ./worker (-Wall -Wextra -pedantic, 0 warnings)
+./watchdog                    # run from the project root; prints its PID
+
+kill -USR1 &lt;watchdog-pid&gt;     # status report
+kill -KILL &lt;worker-pid&gt;       # simulate a crash of a test worker
+kill -TERM &lt;watchdog-pid&gt;     # graceful shutdown (Ctrl+C does the same)
+WORKER_STUBBORN=1 ./watchdog  # workers ignore SIGTERM: tests the SIGKILL timeout
+
+make test                     # automated scenarios (tests/test_scenarios.sh)</pre>
+<p>Full installation and usage instructions are in <code>README.md</code>.</p>
+
+<!-- ============================================================ 8 -->
+<h2>8. Test Scenarios and Results</h2>
+<p>
+  <code>tests/test_scenarios.sh</code> builds the project, runs the watchdog three times and checks the log,
+  the process table (zombies) and leftover workers. Each check prints PASS or FAIL.
+  {{TEST_ENV}}
+</p>
+{{TEST_SUMMARY}}
+<h3>8.1 Ctrl+C</h3>
+<p>
+  On Ctrl+C the terminal sends <code>SIGINT</code> to its whole foreground process group. This was reproduced by
+  starting the watchdog as a process-group leader and sending <code>SIGINT</code> to the group
+  (<code>kill -INT -- -&lt;pgid&gt;</code>). Every worker runs in its own process group (PGID = PID), so only the
+  watchdog received the signal. It logged <code>SHUTDOWN requested by SIGINT</code>, stopped all three workers
+  with <code>SIGTERM</code> (each exited with code 0) and exited, leaving no worker or zombie behind.
+  The workers' blocked-signal mask was empty (<code>SigBlk: 0</code> in <code>/proc</code>) and they did not
+  inherit the log file descriptor.
+</p>
+<p>{{CTRL_C_MANUAL}}</p>
+{{TEST_RAW}}
+
+<!-- ============================================================ 9 -->
+<h2>9. Sample Log Output</h2>
+{{SAMPLE_LOG}}
+
+<!-- ============================================================ 10 -->
+<h2>10. Task Allocation</h2>
+{{TASK_TABLE}}
+<p>
+  Each module was developed on its own branch and merged into <code>main</code> through a pull request
+  (listed below). The integrated <code>main</code> branch was then built and tested as a whole (Section 8).
+  Commit counts exclude merge commits.
+</p>
+<h3>10.1 Pull requests</h3>
+{{PR_TABLE}}
+
+<!-- ============================================================ 11 -->
+<h2>11. Repository and Commit History</h2>
+<p>Public repository: <a href="{{REPO_URL}}">{{REPO_URL}}</a></p>
+{{COMMIT_SUMMARY}}
+<p class="note">Output of <code>git log --pretty=format:"%h %an %ad %s" --date=short</code> ({{GIT_SCOPE}}):</p>
+<pre>{{GIT_LOG}}</pre>
+
+<!-- ============================================================ 12 -->
+<h2>12. Conclusion</h2>
+<p>
+  The watchdog meets the requirements of the assignment. It starts and supervises three worker processes
+  with <code>fork()</code> and <code>execv()</code>, detects their termination with <code>SIGCHLD</code> and
+  <code>waitpid()</code>, tells normal exits from crashes and restarts crashed workers at most three times.
+  It writes a status report on <code>SIGUSR1</code>, logs every event with a timestamp, and shuts down
+  gracefully on <code>SIGINT</code> and <code>SIGTERM</code>, falling back to <code>SIGKILL</code> after a
+  timeout.
+</p>
+<p>
+  The most important lesson of the project was how to handle asynchronous signals safely. Handlers only set
+  flags. The real work runs in the main loop. Blocking the signals and waiting with
+  <code>sigsuspend()</code>/<code>pselect()</code> closes the race between checking for work and going to
+  sleep. Splitting the program into three modules with small header interfaces let the three members work in
+  parallel and integrate their parts through pull requests.
+</p>
+
+</body>
+</html>
