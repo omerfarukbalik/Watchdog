@@ -1,0 +1,77 @@
+{
+  "repo_url": "https://github.com/omerfarukbalik/Watchdog",
+  "course": "System Programming (2026-2027 Fall)",
+  "members": [
+    {
+      "student": 1,
+      "name": "Kürşat Kerem Çevlik",
+      "number": "B231202053",
+      "github": "KursatKerem56",
+      "git_authors": [
+        "buncho",
+        "Kürşat Kerem Çevlik"
+      ],
+      "module": "Signal management and main program",
+      "files": [
+        "include/signal_manager.h",
+        "src/signal_manager.c",
+        "src/main.c",
+        "docs/REPORT.pdf"
+      ],
+      "tasks": [
+        "Installing all signal handlers with sigaction()",
+        "Handling SIGINT, SIGTERM and SIGUSR1",
+        "Main control loop and graceful shutdown sequence",
+        "Async-signal-safe handler design",
+        "Project report"
+      ]
+    },
+    {
+      "student": 2,
+      "name": "İsmail Kerem Erkul",
+      "number": "B231202068",
+      "github": "ismailkeremerkul",
+      "git_authors": [
+        "İsmail Kerem ERKUL",
+        "ismailkeremerkul"
+      ],
+      "module": "Child process management",
+      "files": [
+        "include/process_manager.h",
+        "src/process_manager.c"
+      ],
+      "tasks": [
+        "Starting children with fork() and execv()",
+        "Reaping children with SIGCHLD and waitpid()",
+        "Classifying normal and unexpected termination",
+        "Bounded automatic restart (maximum 3), retry of failed starts",
+        "Periodic check with setitimer() / SIGALRM"
+      ]
+    },
+    {
+      "student": 3,
+      "name": "Ömer Faruk Balık",
+      "number": "B231202373",
+      "github": "omerfarukbalik",
+      "git_authors": [
+        "omerfarukbalik"
+      ],
+      "module": "Logging and test infrastructure",
+      "files": [
+        "include/logger.h",
+        "src/logger.c",
+        "workers/worker.c",
+        "Makefile",
+        "tests/test_scenarios.sh",
+        "README.md"
+      ],
+      "tasks": [
+        "Timestamped event log (open/write)",
+        "SIGUSR1 status report",
+        "Test worker and automated test scenarios",
+        "Makefile, README and test documentation"
+      ]
+    }
+  ],
+  "ctrl_c_tested_by_hand": true
+}
