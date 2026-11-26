@@ -98,8 +98,14 @@ for each check (exit code 0 only if everything passed):
 | 8 | Stubborn workers       | SIGTERM ignored -> SIGKILL after the 5 s timeout        |
 
 Set `SAVE_SAMPLE=1 make test` to copy the log of the first run to
-`docs/sample_watchdog.log`. The `Ctrl+C` test is also done by hand, as
-described above.
+`docs/sample_watchdog.log`. The committed `docs/sample_watchdog.log` and
+`docs/test_results.txt` come from the same run of:
+
+```sh
+SAVE_SAMPLE=1 bash tests/test_scenarios.sh | tee docs/test_results.txt
+```
+
+The `Ctrl+C` test is also done by hand, as described above.
 
 Leak check (optional):
 
@@ -157,7 +163,8 @@ include/  signal_manager.h  process_manager.h  logger.h
 src/      main.c  signal_manager.c  process_manager.c  logger.c
 workers/  worker.c
 tests/    test_scenarios.sh
-docs/     REPORT.pdf  sample_watchdog.log
+docs/     REPORT.pdf  sample_watchdog.log  test_results.txt
+          report/   (report generator: build_report.py, template.html, members.json)
 ```
 
 ## Team
@@ -166,6 +173,6 @@ docs/     REPORT.pdf  sample_watchdog.log
 |------|--------|--------|-------|
 | A (Student 1) | Kürşat Kerem ÇEVLİK (KursatKerem56) | Signal management & main program | `signal_manager.h/.c`, `main.c`, `docs/REPORT.pdf` |
 | B (Student 2) | İsmail Kerem ERKUL (ismailkeremerkul) | Child process management | `process_manager.h/.c` |
-| C (Student 3) | omerfarukbalik | Logging & test infrastructure | `logger.h/.c`, `worker.c`, `Makefile`, `test_scenarios.sh`, `README.md` |
+| C (Student 3) | Ömer Faruk BALIK (omerfarukbalik) | Logging & test infrastructure | `logger.h/.c`, `worker.c`, `Makefile`, `test_scenarios.sh`, `README.md` |
 
 Repository: https://github.com/omerfarukbalik/Watchdog
