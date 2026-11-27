@@ -1,0 +1,36 @@
+== build
+PASS build
+== run 1: normal life cycle + SIGTERM shutdown
+PASS 1 normal operation: alpha started
+PASS 1 normal operation: beta started
+PASS 1 normal operation: gamma started
+PASS 2 normal termination: beta exit logged
+PASS 2 normal termination: beta not restarted
+PASS 3 unexpected termination: crash logged
+PASS 3 unexpected termination: restarted
+PASS 3 unexpected termination: new alpha pid=639
+PASS 4 restart limit: gamma gave up
+PASS 4 restart limit: exactly 3 restarts
+PASS 4 no zombie children while running
+PASS 5 status report: header
+PASS 5 status report: alpha RUNNING
+PASS 5 status report: gamma GAVE_UP
+PASS 5 watchdog still alive after SIGUSR1
+PASS 6 graceful shutdown: requested
+PASS 6 graceful shutdown: exit
+PASS 6 graceful shutdown: no SIGKILL needed
+PASS 6 graceful shutdown: no restarts after shutdown request
+PASS 6 graceful shutdown: no children left
+     (saved run 1 log to docs/sample_watchdog.log)
+== run 2: SIGINT (same path as Ctrl+C)
+PASS 7 SIGINT: children started
+PASS 7 SIGINT: shutdown requested
+PASS 7 SIGINT: watchdog exit
+PASS 7 SIGINT: no children left
+== run 3: stubborn workers ignore SIGTERM -> SIGKILL after timeout
+PASS 8 stubborn: children started
+PASS 8 stubborn: SIGKILL after timeout
+PASS 8 stubborn: watchdog exit
+PASS 8 stubborn: no children left
+
+passed=29 failed=0

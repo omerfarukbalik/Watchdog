@@ -48,6 +48,7 @@ The watchdog prints its PID on start. It supervises three test workers:
 | Status report          | `kill -USR1 <watchdog-pid>`      | logs every child's PID, state and uptime   |
 | Graceful shutdown      | `kill -TERM <watchdog-pid>`      | SIGTERM to all children, SIGKILL after 5 s |
 | Graceful shutdown      | `Ctrl+C` in the watchdog terminal, or `kill -INT <watchdog-pid>` | same as above |
+| Force shutdown         | a second `Ctrl+C` / SIGTERM during shutdown | SIGKILL to all children immediately |
 | Simulate a crash       | `kill -KILL <worker-pid>`        | logged as CRASH, worker restarted          |
 | List the workers       | `ps -o pid,stat,cmd --ppid <watchdog-pid>` | no `Z` (zombie) entries expected |
 
@@ -97,8 +98,14 @@ for each check (exit code 0 only if everything passed):
 | 8 | Stubborn workers       | SIGTERM ignored -> SIGKILL after the 5 s timeout        |
 
 Set `SAVE_SAMPLE=1 make test` to copy the log of the first run to
-`docs/sample_watchdog.log`. The `Ctrl+C` test is also done by hand, as
-described above.
+`docs/sample_watchdog.log`. The committed `docs/sample_watchdog.log` and
+`docs/test_results.txt` come from the same run of:
+
+```sh
+SAVE_SAMPLE=1 bash tests/test_scenarios.sh | tee docs/test_results.txt
+```
+
+The `Ctrl+C` test is also done by hand, as described above.
 
 Leak check (optional):
 
@@ -124,12 +131,16 @@ The log is opened with `O_APPEND`, so earlier runs are kept. Events:
 | `CRASH name pid=N ...`   | child exited with a non-zero code or was killed by a signal |
 | `RESTART name attempt k/3` | child restarted after a crash             |
 | `GIVE UP name`           | restart limit reached                       |
-| `CHECK running=N`        | periodic check (every 5 s, via SIGALRM)     |
+| `TIMER periodic check every 5s` | SIGALRM timer armed                  |
+| `CHECK running=N ...`    | periodic check (every 5 s, via SIGALRM)     |
 | `STATUS REPORT`          | followed by one line per child (SIGUSR1)    |
-| `SHUTDOWN requested`     | SIGINT or SIGTERM received                  |
+| `SHUTDOWN requested by SIGxxx` | SIGINT or SIGTERM received            |
+| `SHUTDOWN sent SIGTERM ...` | polite stop request sent to all children |
 | `STOP name pid=N`        | child stopped during shutdown               |
 | `SHUTDOWN timeout ...`   | children did not exit in 5 s, SIGKILL sent  |
+| `SHUTDOWN complete ...`  | all children stopped and reaped             |
 | `WATCHDOG EXIT`          | watchdog finished                           |
+| `LOG CLOSED`             | last line written by the logger             |
 
 Example:
 
@@ -152,7 +163,8 @@ include/  signal_manager.h  process_manager.h  logger.h
 src/      main.c  signal_manager.c  process_manager.c  logger.c
 workers/  worker.c
 tests/    test_scenarios.sh
-docs/     REPORT.pdf  sample_watchdog.log
+docs/     REPORT.pdf  sample_watchdog.log  test_results.txt
+          report/   (report generator: build_report.py, template.html, members.json)
 ```
 
 ## Team
@@ -160,7 +172,7 @@ docs/     REPORT.pdf  sample_watchdog.log
 | Role | Member | Module | Files |
 |------|--------|--------|-------|
 | A (Student 1) | Kürşat Kerem ÇEVLİK (KursatKerem56) | Signal management & main program | `signal_manager.h/.c`, `main.c`, `docs/REPORT.pdf` |
-| B (Student 2) | _TODO_ | Child process management | `process_manager.h/.c` |
-| C (Student 3) | omerfarukbalik | Logging & test infrastructure | `logger.h/.c`, `worker.c`, `Makefile`, `test_scenarios.sh`, `README.md` |
+| B (Student 2) | İsmail Kerem ERKUL (ismailkeremerkul) | Child process management | `process_manager.h/.c` |
+| C (Student 3) | Ömer Faruk BALIK (omerfarukbalik) | Logging & test infrastructure | `logger.h/.c`, `worker.c`, `Makefile`, `test_scenarios.sh`, `README.md` |
 
 Repository: https://github.com/omerfarukbalik/Watchdog
