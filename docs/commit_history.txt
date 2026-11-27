@@ -3,8 +3,8 @@ afbc2bf omerfarukbalik 2026-11-26 docs: README - full name in team table, docume
 9c463f6 omerfarukbalik 2026-11-26 docs: add test_results.txt and matching sample_watchdog.log from one run of current main (29/29 PASS)
 dae2e09 omerfarukbalik 2026-11-26 Merge branch 'main' into docs/sample-log
 1e4fae2 Kürşat Kerem Çevlik 2026-11-26 Merge pull request #6 from omerfarukbalik/docs/report
-6cf463f buncho 2026-11-26 docs: add project report REPORT.pdf (architecture, signals, tests, task allocation)
-7a9d649 buncho 2026-11-26 docs: add report generator (HTML template, member data, build script)
+6cf463f Kürşat Kerem Çevlik 2026-11-26 docs: add project report REPORT.pdf (architecture, signals, tests, task allocation)
+7a9d649 Kürşat Kerem Çevlik 2026-11-26 docs: add report generator (HTML template, member data, build script)
 b94e334 omerfarukbalik 2026-11-25 docs: README - add B to team table, document force shutdown and new log events
 da00d3a omerfarukbalik 2026-11-25 docs: add sample_watchdog.log from a full make test run (29/29 PASS)
 7153264 Kürşat Kerem Çevlik 2026-11-25 Merge pull request #5 from omerfarukbalik/feature/process-manager
@@ -13,13 +13,13 @@ da00d3a omerfarukbalik 2026-11-25 docs: add sample_watchdog.log from a full make
 fc27c94 İsmail Kerem ERKUL 2026-11-25 process: start children with fork/execv in their own process group
 bcab7ba İsmail Kerem ERKUL 2026-11-25 process: add process_manager.h interface (child table, states, pm_* API)
 149acbd Kürşat Kerem Çevlik 2026-11-25 Merge pull request #4 from omerfarukbalik/docs/readme-team-student1
-3b0ed9e buncho 2026-11-25 docs: add Student 1 name to README team table
+3b0ed9e Kürşat Kerem Çevlik 2026-11-25 docs: add Student 1 name to README team table
 a12d57b Kürşat Kerem Çevlik 2026-11-25 Merge pull request #3 from omerfarukbalik/feature/signals
 9bdc285 Kürşat Kerem Çevlik 2026-11-25 Merge pull request #1 from omerfarukbalik/feature/logger
 56a2d5e Kürşat Kerem Çevlik 2026-11-25 Merge pull request #2 from omerfarukbalik/feature/tests
-205af99 buncho 2026-11-24 main: add main control loop and graceful shutdown sequence
-a71cac5 buncho 2026-11-24 signals: implement async-signal-safe sigaction handlers for SIGINT/SIGTERM/SIGUSR1/SIGCHLD/SIGALRM
-a44d61a buncho 2026-11-24 signals: add signal_manager.h interface (install, wait, flag accessors, child reset)
+205af99 Kürşat Kerem Çevlik 2026-11-24 main: add main control loop and graceful shutdown sequence
+a71cac5 Kürşat Kerem Çevlik 2026-11-24 signals: implement async-signal-safe sigaction handlers for SIGINT/SIGTERM/SIGUSR1/SIGCHLD/SIGALRM
+a44d61a Kürşat Kerem Çevlik 2026-11-24 signals: add signal_manager.h interface (install, wait, flag accessors, child reset)
 9e52141 omerfarukbalik 2026-11-24 docs: write README (build, run, signals, worker modes, tests, log format, team)
 13154cc omerfarukbalik 2026-11-24 tests: add automated scenario script (8 scenarios, PASS/FAIL, zombie and leftover-child checks)
 f285329 omerfarukbalik 2026-11-24 logger: implement open/write logger with write_all, timestamps and SIGUSR1 status report
